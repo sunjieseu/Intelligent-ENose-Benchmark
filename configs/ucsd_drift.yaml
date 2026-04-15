@@ -1,0 +1,57 @@
+# Configuration for Drift Compensation Evaluation
+# UCSD Dataset - Sequential Batch Evaluation
+
+dataset:
+  name: 'ucsd'
+  n_batches: 10
+  normalize: true
+  feature_type: 'steady_state'
+
+# Methods to evaluate
+methods:
+  dann: true
+  tca: true
+  cre: true
+  
+  # Domain adaptation parameters
+  dann_params:
+    hidden_dim: 128
+    alpha: 1.0
+    epochs: 50
+    batch_size: 32
+    learning_rate: 0.001
+  
+  # TCA parameters
+  tca_params:
+    n_components: 20
+    kernel_type: 'rbf'
+    gamma: 1.0
+  
+  # Classifier Replacement Ensemble parameters
+  cre_params:
+    ensemble_size: 5
+    threshold: 0.05
+    update_interval: 30
+    base_model: 'svm'
+
+# Transfer learning evaluation
+transfer_learning:
+  enabled: true
+  adaptation_epochs: 100
+  labeled_samples_per_batch: 50  # For semi-supervised methods
+
+# Metrics configuration
+metrics:
+  compute_bwt: true
+  compute_fwd: true
+  average_accuracy: true
+  final_batch_accuracy: true
+  performance_degradation: true
+
+evaluation:
+  save_results: true
+  output_dir: 'results/drift'
+  save_predictions: true
+  verbose: true
+
+random_seed: 42

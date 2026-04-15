@@ -1,0 +1,48 @@
+# Configuration for Static Baseline Training
+# UCSD Dataset - Standard Evaluation Protocol
+
+dataset:
+  name: 'ucsd'
+  source_batches: [1, 2]
+  target_batches: [3, 4, 5]
+  normalize: true
+  feature_type: 'steady_state'
+
+# Feature fusion method (optional)
+# Options: null, 'pca', 'attention'
+fusion:
+  method: null
+  # method: 'pca'
+  # n_components: 10
+
+model:
+  name: 'svm'  # Options: 'svm', 'rf', 'mlp'
+  input_dim: 16
+  num_classes: 6
+  
+  # SVM-specific parameters
+  kernel: 'rbf'
+  C: 1.0
+  
+  # MLP-specific parameters (if using MLP)
+  # hidden_layers: [128, 64]
+  # max_iter: 1000
+
+training:
+  epochs: 100
+  batch_size: 32
+  learning_rate: 0.001
+  optimizer: 'adam'
+  device: 'cpu'  # 'cpu' or 'cuda'
+
+evaluation:
+  metrics:
+    - 'accuracy'
+    - 'f1_macro'
+    - 'precision_macro'
+    - 'recall_macro'
+  save_results: true
+  output_dir: 'results/baseline'
+  verbose: true
+
+random_seed: 42

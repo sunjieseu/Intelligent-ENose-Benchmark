@@ -1,0 +1,59 @@
+# Configuration for Few-Shot Learning Evaluation
+# UCSD Dataset - N-way K-shot Episodic Evaluation
+
+dataset:
+  name: 'ucsd'
+  source_batches: [1, 2]
+  target_batches: [3]  # Use batch 3 for few-shot evaluation
+  normalize: true
+  feature_type: 'steady_state'
+
+# Few-shot task configuration
+fewshot:
+  n_way: 5
+  k_shot: 3
+  n_query: 15
+  n_episodes: 1000  # Training episodes
+  
+  # Compare different K-shot values
+  k_values: [1, 3, 5, 10]
+
+# Model configuration
+model:
+  name: 'protonet'  # Options: 'protonet', 'relationnet', 'maml'
+  input_dim: 16
+  hidden_dim: 64
+  embedding_dim: 32
+  distance_metric: 'euclidean'  # 'euclidean' or 'cosine'
+
+# Training configuration
+training:
+  train: true
+  n_episodes: 1000
+  lr: 0.001
+  optimizer: 'adam'
+  device: 'cpu'  # 'cpu' or 'cuda'
+  
+  # MAML-specific parameters (if using MAML)
+  # maml_inner_lr: 0.01
+  # maml_meta_lr: 0.001
+  # maml_inner_steps: 5
+
+# Evaluation configuration
+evaluation:
+  n_test_episodes: 600
+  save_results: true
+  output_dir: 'results/fewshot'
+  compute_confidence_interval: true
+  confidence_level: 0.95
+  verbose: true
+
+# Metrics
+metrics:
+  mean_accuracy: true
+  std_accuracy: true
+  confidence_interval: true
+  min_max_accuracy: true
+  per_class_accuracy: true
+
+random_seed: 42
