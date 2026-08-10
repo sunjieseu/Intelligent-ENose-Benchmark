@@ -19,6 +19,7 @@ import torch
 import logging
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from typing import List, Dict, Tuple
 
@@ -28,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datasets.dataset_loaders import load_ucsd
 from models.transfer_learning import DANN, TCA, JDA
 from models.drift_compensation import ClassifierReplacementEnsemble, OrthogonalSignalCorrection
-from utils.metrics import compute_bwt, compute_fwd, compute_all_metrics
+from utils.metrics import compute_bwt_from_matrix, compute_fwt_from_matrix, compute_all_metrics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -62,6 +63,9 @@ def evaluate_sequential_batches(config):
     
     # Adaptive model (with drift compensation)
     adaptive_accs = []
+    seen_eval_tasks = []
+    cre_accuracy_matrix = np.full((n_batches, n_batches), np.nan)
+    baseline_task_accs = np.full(n_batches, np.nan)
     
     for batch_idx in range(1, n_batches + 1):
         logger.info(f"\n{'='*40}")
@@ -76,16 +80,27 @@ def evaluate_sequential_batches(config):
             normalize=True
         )
         
-        # Baseline: Static model trained on batch 1
+        if len(np.unique(y_target)) > 1:
+            stratify = y_target
+        else:
+            stratify = None
+        X_adapt, X_eval, y_adapt, y_eval = train_test_split(
+            X_target, y_target, test_size=0.5, random_state=1000 + batch_idx,
+            stratify=stratify
+        )
+        seen_eval_tasks.append((X_eval, y_eval))
+
+        # Baseline: Static model trained on the adaptation split of batch 1
         if batch_idx == 1:
             # Train baseline model
             baseline_model = SVC(kernel='rbf', probability=True)
-            baseline_model.fit(X_source, y_source)
+            baseline_model.fit(X_adapt, y_adapt)
             logger.info("Baseline model trained on batch 1")
         
         # Evaluate baseline
-        baseline_pred = baseline_model.predict(X_target)
-        baseline_acc = accuracy_score(y_target, baseline_pred)
+        baseline_pred = baseline_model.predict(X_eval)
+        baseline_acc = accuracy_score(y_eval, baseline_pred)
+        baseline_task_accs[batch_idx - 1] = baseline_acc
         reference_accs.append(baseline_acc)
         
         logger.info(f"Baseline accuracy (no adaptation): {baseline_acc:.4f}")
@@ -101,26 +116,26 @@ def evaluate_sequential_batches(config):
             )
             
             # Train DANN
-            dann.fit(X_source, y_source, X_target, epochs=50, batch_size=32)
+            dann.fit(X_source, y_source, X_adapt, epochs=50, batch_size=32)
             
-            dann_pred = dann.predict(X_target)
-            dann_acc = accuracy_score(y_target, dann_pred)
+            dann_pred = dann.predict(X_eval)
+            dann_acc = accuracy_score(y_eval, dann_pred)
             logger.info(f"DANN accuracy: {dann_acc:.4f}")
         
         # Method 2: TCA + Classifier
         if config.get('methods', {}).get('tca', False):
             logger.info("Applying TCA + SVM...")
             tca = TCA(n_components=20)
-            X_combined = np.vstack([X_source, X_target])
-            X_transformed = tca.fit_transform(X_source, X_target)
+            X_transformed = tca.fit_transform(X_source, X_adapt)
             
             X_source_t = X_transformed[:len(X_source)]
             X_target_t = X_transformed[len(X_source):]
+            X_eval_t = tca.transform(X_eval)
             
             tca_svm = SVC(kernel='rbf')
             tca_svm.fit(X_source_t, y_source)
-            tca_pred = tca_svm.predict(X_target_t)
-            tca_acc = accuracy_score(y_target, tca_pred)
+            tca_pred = tca_svm.predict(X_eval_t)
+            tca_acc = accuracy_score(y_eval, tca_pred)
             logger.info(f"TCA+SVM accuracy: {tca_acc:.4f}")
         
         # Method 3: Classifier Replacement Ensemble
@@ -133,19 +148,23 @@ def evaluate_sequential_batches(config):
                     ensemble_size=5,
                     threshold=0.05
                 )
-                cre.fit_initial(X_source, y_source)
+                cre.fit_initial(X_adapt, y_adapt)
                 logger.info("CRE ensemble initialized")
             else:
-                # Update ensemble with new data
-                # In real scenario, you'd have some labeled data
-                n_labeled = min(50, len(X_target))
-                labeled_idx = np.random.choice(len(X_target), n_labeled, replace=False)
-                
-                cre.update(X_target[labeled_idx], y_target[labeled_idx])
-                logger.info(f"CRE ensemble updated with {n_labeled} samples")
+                pre_pred = cre.predict(X_eval)
+                cre_accuracy_matrix[batch_idx - 2, batch_idx - 1] = accuracy_score(y_eval, pre_pred)
+                 
+                n_labeled = min(50, len(X_adapt))
+                labeled_idx = np.random.choice(len(X_adapt), n_labeled, replace=False)
+                cre.update(X_adapt[labeled_idx], y_adapt[labeled_idx])
+                logger.info(f"CRE ensemble updated with {n_labeled} labeled adaptation samples")
             
-            cre_pred = cre.predict(X_target)
-            cre_acc = accuracy_score(y_target, cre_pred)
+            for task_idx, (X_task_eval, y_task_eval) in enumerate(seen_eval_tasks):
+                task_pred = cre.predict(X_task_eval)
+                cre_accuracy_matrix[batch_idx - 1, task_idx] = accuracy_score(y_task_eval, task_pred)
+
+            cre_pred = cre.predict(X_eval)
+            cre_acc = accuracy_score(y_eval, cre_pred)
             adaptive_accs.append(cre_acc)
             logger.info(f"CRE accuracy: {cre_acc:.4f}")
         
@@ -176,8 +195,15 @@ def evaluate_sequential_batches(config):
         logger.info(f"Average Accuracy (adaptive): {avg_adaptive_acc:.4f}")
         logger.info(f"Improvement over baseline: {avg_adaptive_acc - avg_acc:.4f}")
     
-    # Compute BWT and FWT if we have sequential results
-    # (In a full implementation, you'd store all predictions for this)
+    cre_bwt = None
+    cre_fwt = None
+    if config.get('methods', {}).get('cre', False) and np.isfinite(np.diag(cre_accuracy_matrix)).all():
+        filled_matrix = cre_accuracy_matrix.copy()
+        filled_matrix[np.isnan(filled_matrix)] = 0.0
+        cre_bwt = compute_bwt_from_matrix(filled_matrix)
+        cre_fwt = compute_fwt_from_matrix(filled_matrix, baseline_task_accs)
+        logger.info(f"CRE BWT (matrix): {cre_bwt:.4f}")
+        logger.info(f"CRE FWT (matrix): {cre_fwt:.4f}")
     
     # Save results
     if config.get('evaluation', {}).get('save_results', True):
@@ -189,10 +215,14 @@ def evaluate_sequential_batches(config):
             'average_accuracy': avg_acc,
             'final_accuracy': final_acc,
             'degradation': degradation,
+            'baseline_task_accuracies': baseline_task_accs.tolist(),
         }
         
         if len(adaptive_accs) > 0:
             results['adaptive_average'] = avg_adaptive_acc
+            results['cre_accuracy_matrix'] = cre_accuracy_matrix.tolist()
+            results['cre_bwt'] = cre_bwt
+            results['cre_fwt'] = cre_fwt
         
         import json
         results_path = os.path.join(output_dir, 'drift_evaluation_results.json')

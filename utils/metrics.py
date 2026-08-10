@@ -88,6 +88,40 @@ def compute_bwt(predictions_history: List[np.ndarray],
     return bwt
 
 
+def compute_bwt_from_matrix(accuracy_matrix: np.ndarray) -> float:
+    """Compute standard BWT from a stage-by-task accuracy matrix.
+
+    Rows denote the training stage after learning task t, and columns denote
+    evaluation tasks. Entry a[t, i] is the accuracy on task i after stage t.
+    """
+    matrix = np.asarray(accuracy_matrix, dtype=float)
+    n_tasks = matrix.shape[0]
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1] or n_tasks < 2:
+        raise ValueError("accuracy_matrix must be a square matrix with at least 2 tasks")
+
+    final_row = matrix[n_tasks - 1, :n_tasks - 1]
+    learned_diag = np.diag(matrix)[:n_tasks - 1]
+    return float(np.mean(final_row - learned_diag))
+
+
+def compute_fwt_from_matrix(accuracy_matrix: np.ndarray, baseline_accuracies: np.ndarray) -> float:
+    """Compute standard FWT from a stage-by-task accuracy matrix.
+
+    baseline_accuracies[i] is the accuracy on task i without transfer before
+    learning that task. Task 0 is excluded from the average by definition.
+    """
+    matrix = np.asarray(accuracy_matrix, dtype=float)
+    baseline = np.asarray(baseline_accuracies, dtype=float)
+    n_tasks = matrix.shape[0]
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1] or n_tasks < 2:
+        raise ValueError("accuracy_matrix must be a square matrix with at least 2 tasks")
+    if baseline.shape[0] != n_tasks:
+        raise ValueError("baseline_accuracies must have one value per task")
+
+    pre_task_scores = np.array([matrix[i - 1, i] for i in range(1, n_tasks)])
+    return float(np.mean(pre_task_scores - baseline[1:]))
+
+
 def compute_fwd(predictions_history: List[np.ndarray],
                 y_true_history: List[np.ndarray],
                 baseline_accuracy: float) -> float:

@@ -99,7 +99,7 @@ Intelligent-ENose-Benchmark/
 
 ```bash
 # Clone the repository
-git clone https://github.com/sunjieseu/Intelligent-ENose-Benchmark.git
+git clone https://anonymous.4open.science/r/Intelligent-ENose-Benchmark.git
 cd Intelligent-ENose-Benchmark
 
 # Create and activate virtual environment
@@ -285,10 +285,10 @@ pytest --cov=models --cov=datasets tests/
 If you use this benchmark in your research, please cite:
 
 ```bibtex
-@article{sun2026intelligent,
-  title={Building Robust Intelligent E-Nose Systems Under Data Scarcity and Sensor Drift: A Comprehensive Review},
-  author={Sun, Jie and Luo, Wenjie and Chen, Zhongshan and Wang, Yan and Qi, Zhengdong and Zhu, Jie and Zhang, Yuzhou and Hou, Yali},
-  journal={Nature-style Journal},
+@article{anonymous2026intelligent,
+  title={Continual Learning for Robotic and Edge Chemical Sensing: A Critical Review and Lifecycle Benchmark Framework},
+  author={Anonymous Authors},
+  journal={Under double-blind review},
   year={2026}
 }
 ```
@@ -304,9 +304,9 @@ We welcome contributions! Please:
 
 ## 📧 Contact
 
-- **Lead Author**: Jie Sun (jie.sun@njxzc.edu.cn)
-- **Institution**: Nanjing Xiaozhuang University, China
-- **GitHub**: [sunjieseu](https://github.com/sunjieseu)
+- **Contact**: Anonymous during double-blind review
+- **Institution**: Withheld during double-blind review
+- **Repository**: Anonymous review link
 
 ## 📄 License
 
@@ -314,8 +314,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgements
 
-- National Natural Science Foundation of China (Grant No. 62177028)
-- Key Project of the "14th Five-Year Plan" of Educational Science in Jiangsu Province (B-b/2024/01/145)
-- Key Project of the Jiangsu Higher Education Association (2024CXG029)
-- Nanjing Jiehui Intelligent Technology Co., Ltd.
+Acknowledgements are withheld during double-blind review.
 

@@ -24,6 +24,7 @@ model:
   input_dim: 16
   hidden_dim: 64
   embedding_dim: 32
+  relation_dim: 8
   distance_metric: 'euclidean'  # 'euclidean' or 'cosine'
 
 # Training configuration

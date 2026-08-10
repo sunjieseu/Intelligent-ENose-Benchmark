@@ -235,7 +235,7 @@ Contributors will be:
 ## ❓ Questions?
 
 - **Open an issue** for general questions
-- **Contact maintainers**: jie.sun@njxzc.edu.cn
+- **Contact maintainers**: withheld during double-blind review
 - **Join discussions** in GitHub Discussions (if enabled)
 
 ---

@@ -9,12 +9,12 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 setup(
     name="intelligent-enose-benchmark",
     version="1.0.0",
-    author="Jie Sun, Wenjie Luo, Zhongshan Chen",
-    author_email="jie.sun@njxzc.edu.cn",
+    author="Anonymous Authors",
+    author_email="anonymous@example.com",
     description="A comprehensive benchmark for robust intelligent E-nose systems under data scarcity and sensor drift",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sunjieseu/Intelligent-ENose-Benchmark",
+    url="https://anonymous.4open.science/r/Intelligent-ENose-Benchmark",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",

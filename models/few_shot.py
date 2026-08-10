@@ -383,15 +383,11 @@ class RelationNetwork(nn.Module):
         n_query = query_features.shape[0]
         n_support = support_features.shape[0]
         
-        relations = torch.zeros(n_query, n_support)
-        
-        for i in range(n_query):
-            for j in range(n_support):
-                # Concatenate query and support features
-                combined = torch.cat([query_features[i], support_features[j]])
-                relations[i, j] = self.relation_network(combined)
-        
-        return relations
+        query_expanded = query_features.unsqueeze(1).expand(n_query, n_support, -1)
+        support_expanded = support_features.unsqueeze(0).expand(n_query, n_support, -1)
+        pairs = torch.cat([query_expanded, support_expanded], dim=2)
+        relations = self.relation_network(pairs.reshape(n_query * n_support, -1))
+        return relations.reshape(n_query, n_support)
     
     def forward(self, X_query: torch.Tensor, X_support: torch.Tensor,
                y_support: torch.Tensor, n_way: int) -> torch.Tensor:
@@ -419,6 +415,37 @@ class RelationNetwork(nn.Module):
         
         return relation_scores
 
+    def train_episode(self, support_set: Tuple, query_set: Tuple,
+                     optimizer: torch.optim.Optimizer, device: str = 'cpu') -> float:
+        """Train RelationNet on a single episode."""
+        self.train()
+        optimizer.zero_grad()
+
+        X_support = torch.FloatTensor(support_set[0]).to(device)
+        y_support = torch.LongTensor(support_set[1]).to(device)
+        X_query = torch.FloatTensor(query_set[0]).to(device)
+        y_query = torch.LongTensor(query_set[1]).to(device)
+        n_way = len(torch.unique(y_support))
+
+        scores = self(X_query, X_support, y_support, n_way)
+        loss = F.cross_entropy(scores, y_query)
+        loss.backward()
+        optimizer.step()
+        return loss.item()
+
+    def predict(self, X_query: np.ndarray, support_set: Tuple, device: str = 'cpu') -> np.ndarray:
+        """Predict query labels using relation scores to the support set."""
+        self.eval()
+        X_query_t = torch.FloatTensor(X_query).to(device)
+        X_support_t = torch.FloatTensor(support_set[0]).to(device)
+        y_support_t = torch.LongTensor(support_set[1]).to(device)
+        n_way = len(torch.unique(y_support_t))
+
+        with torch.no_grad():
+            scores = self(X_query_t, X_support_t, y_support_t, n_way)
+            _, predicted = torch.max(scores, 1)
+        return predicted.cpu().numpy()
+
 
 def create_fewshot_episode(X: np.ndarray, y: np.ndarray,
                           n_way: int = 5, k_shot: int = 5, n_query: int = 15) -> Tuple:
@@ -445,6 +472,8 @@ def create_fewshot_episode(X: np.ndarray, y: np.ndarray,
     support_samples = []
     query_samples = []
     
+    label_map = {cls: idx for idx, cls in enumerate(selected_classes)}
+
     for cls in selected_classes:
         cls_indices = np.where(y == cls)[0]
         n_available = len(cls_indices)
@@ -459,8 +488,8 @@ def create_fewshot_episode(X: np.ndarray, y: np.ndarray,
         support_idx = shuffled_indices[:k_shot]
         query_idx = shuffled_indices[k_shot:k_shot + n_query]
         
-        support_samples.append((X[support_idx], y[support_idx]))
-        query_samples.append((X[query_idx], y[query_idx]))
+        support_samples.append((X[support_idx], np.full(k_shot, label_map[cls], dtype=int)))
+        query_samples.append((X[query_idx], np.full(n_query, label_map[cls], dtype=int)))
     
     # Combine samples
     X_support = np.concatenate([s[0] for s in support_samples])

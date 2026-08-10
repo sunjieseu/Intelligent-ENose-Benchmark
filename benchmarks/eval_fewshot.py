@@ -23,7 +23,7 @@ from typing import Tuple, List
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datasets.dataset_loaders import load_ucsd, create_fewshot_task
-from models.few_shot import PrototypicalNetwork, create_fewshot_episode
+from models.few_shot import PrototypicalNetwork, RelationNetwork, create_fewshot_episode
 from utils.metrics import compute_all_metrics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -67,8 +67,12 @@ def evaluate_fewshot(config):
         normalize=True
     )
     
-    logger.info(f"Target domain: {X_target.shape[0]} samples")
-    logger.info(f"Number of classes: {len(np.unique(y_target))}")
+    X_train_pool, y_train_pool = X_source, y_source
+    X_test_pool, y_test_pool = X_target, y_target
+
+    logger.info(f"Meta-training pool: {X_train_pool.shape[0]} samples")
+    logger.info(f"Meta-testing pool: {X_test_pool.shape[0]} samples")
+    logger.info(f"Number of test classes: {len(np.unique(y_test_pool))}")
     
     # Initialize model
     model_config = config['model']
@@ -76,14 +80,22 @@ def evaluate_fewshot(config):
     
     if model_name == 'protonet':
         model = PrototypicalNetwork(
-            input_dim=X_target.shape[1],
+            input_dim=X_train_pool.shape[1],
             hidden_dim=model_config.get('hidden_dim', 64),
             embedding_dim=model_config.get('embedding_dim', 32)
+        )
+    elif model_name == 'relationnet':
+        model = RelationNetwork(
+            input_dim=X_train_pool.shape[1],
+            hidden_dim=model_config.get('hidden_dim', 64),
+            relation_dim=model_config.get('relation_dim', 8)
         )
     else:
         raise ValueError(f"Unknown model: {model_name}")
     
     logger.info(f"Model: {model_name}")
+    device = config.get('training', {}).get('device', 'cpu')
+    model.to(device)
     
     # Training phase
     if config.get('training', {}).get('train', True):
@@ -93,10 +105,6 @@ def evaluate_fewshot(config):
         
         # Setup optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=config['training']['lr'])
-        device = config['training'].get('device', 'cpu')
-        
-        model.to(device)
-        
         # Episodic training
         logger.info(f"Training for {n_episodes} episodes...")
         
@@ -105,7 +113,7 @@ def evaluate_fewshot(config):
         for episode in tqdm(range(n_episodes), desc="Training"):
             # Create training episode
             support_set, query_set = create_fewshot_episode(
-                X_target, y_target,
+                X_train_pool, y_train_pool,
                 n_way=n_way,
                 k_shot=k_shot,
                 n_query=n_query
@@ -133,7 +141,7 @@ def evaluate_fewshot(config):
     for episode in tqdm(range(n_test_episodes), desc="Evaluating"):
         # Create test episode
         support_set, query_set = create_fewshot_episode(
-            X_target, y_target,
+            X_test_pool, y_test_pool,
             n_way=n_way,
             k_shot=k_shot,
             n_query=n_query
@@ -142,15 +150,17 @@ def evaluate_fewshot(config):
         X_support, y_support = support_set
         X_query, y_query = query_set
         
-        # Compute prototypes from support set
-        X_support_t = torch.FloatTensor(X_support)
-        y_support_t = torch.LongTensor(y_support)
-        
-        with torch.no_grad():
-            prototypes = model.compute_prototypes(X_support_t, y_support_t, n_way)
-        
-        # Predict query samples
-        predictions = model.predict(X_query, prototypes)
+        if model_name == 'protonet':
+            X_support_t = torch.FloatTensor(X_support)
+            y_support_t = torch.LongTensor(y_support)
+            
+            with torch.no_grad():
+                prototypes = model.compute_prototypes(X_support_t, y_support_t, n_way)
+            predictions = model.predict(X_query, prototypes)
+        elif model_name == 'relationnet':
+            predictions = model.predict(X_query, support_set, device=device)
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
         
         # Compute metrics
         accuracy = np.mean(predictions == y_query)
@@ -177,6 +187,9 @@ def evaluate_fewshot(config):
         
         results = {
             'task': f'{n_way}-way {k_shot}-shot',
+            'train_pool': dataset_config.get('source_batches', [1, 2]),
+            'test_pool': dataset_config.get('target_batches', [3]),
+            'model': model_name,
             'n_episodes': n_test_episodes,
             'mean_accuracy': mean_accuracy,
             'std_accuracy': std_accuracy,
