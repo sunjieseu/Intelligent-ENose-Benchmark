@@ -72,8 +72,8 @@ class TestTransferLearning:
         """Test TCA transformation."""
         from models.transfer_learning import TCA
         
-        X_source = np.random.randn(100, 16)
-        X_target = np.random.randn(80, 16)
+        X_source = np.random.randn(100, 128)
+        X_target = np.random.randn(80, 128)
         
         tca = TCA(n_components=10)
         X_transformed = tca.fit_transform(X_source, X_target)
@@ -93,7 +93,7 @@ class TestTransferLearning:
         """Test DANN model initialization."""
         from models.transfer_learning import DANN
         
-        dann = DANN(input_dim=16, hidden_dim=64, num_classes=6)
+        dann = DANN(input_dim=128, hidden_dim=64, num_classes=6)
         assert dann is not None
         
         # Check it's a PyTorch module
@@ -108,7 +108,7 @@ class TestFewShot:
         from models.few_shot import PrototypicalNetwork
         
         proto_net = PrototypicalNetwork(
-            input_dim=16,
+            input_dim=128,
             hidden_dim=64,
             embedding_dim=32
         )
@@ -118,9 +118,9 @@ class TestFewShot:
         """Test prototype computation."""
         from models.few_shot import PrototypicalNetwork
         
-        proto_net = PrototypicalNetwork(input_dim=16, hidden_dim=64, embedding_dim=32)
-        
-        X_support = torch.randn(15, 16)  # 5 classes × 3 samples
+        proto_net = PrototypicalNetwork(input_dim=128, hidden_dim=64, embedding_dim=32)
+
+        X_support = torch.randn(15, 128)  # 5 classes × 3 samples
         y_support = torch.tensor([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4])
         
         prototypes = proto_net.compute_prototypes(X_support, y_support, n_way=5)
@@ -132,9 +132,9 @@ class TestFewShot:
         """Test forward pass."""
         from models.few_shot import PrototypicalNetwork
         
-        proto_net = PrototypicalNetwork(input_dim=16, hidden_dim=64, embedding_dim=32)
+        proto_net = PrototypicalNetwork(input_dim=128, hidden_dim=64, embedding_dim=32)
         
-        X_query = torch.randn(50, 16)
+        X_query = torch.randn(50, 128)
         prototypes = torch.randn(5, 32)
         
         probs = proto_net(X_query, prototypes)
@@ -147,7 +147,7 @@ class TestFewShot:
         """Test episode creation."""
         from models.few_shot import create_fewshot_episode
         
-        X = np.random.randn(200, 16)
+        X = np.random.randn(200, 128)
         y = np.random.randint(0, 6, 200)
         
         support_set, query_set = create_fewshot_episode(
@@ -176,7 +176,7 @@ class TestDriftCompensation:
         """Test OSC transformation."""
         from models.drift_compensation import OrthogonalSignalCorrection
         
-        X = np.random.randn(100, 16)
+        X = np.random.randn(100, 128)
         y = np.random.randint(0, 6, 100)
         
         osc = OrthogonalSignalCorrection(n_components=2)
@@ -199,9 +199,9 @@ class TestDriftCompensation:
         """Test CRE prediction."""
         from models.drift_compensation import ClassifierReplacementEnsemble
         
-        X_train = np.random.randn(100, 16)
+        X_train = np.random.randn(100, 128)
         y_train = np.random.randint(0, 6, 100)
-        X_test = np.random.randn(50, 16)
+        X_test = np.random.randn(50, 128)
         
         cre = ClassifierReplacementEnsemble(ensemble_size=3)
         cre.fit_initial(X_train, y_train)
@@ -218,7 +218,7 @@ class TestDriftCompensation:
         from models.transfer_learning import DANN
         
         # Create a simple model
-        model = DANN(input_dim=16, hidden_dim=32, num_classes=6)
+        model = DANN(input_dim=128, hidden_dim=32, num_classes=6)
         
         tta = TestTimeAdaptation(model, adaptation_lr=0.001)
         assert tta is not None

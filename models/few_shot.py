@@ -505,7 +505,7 @@ if __name__ == "__main__":
     print("Testing few-shot learning methods...")
     
     # Create dummy data
-    n_samples, n_features, n_classes = 200, 16, 6
+    n_samples, n_features, n_classes = 200, 128, 6
     X = np.random.randn(n_samples, n_features)
     y = np.random.randint(0, n_classes, n_samples)
     

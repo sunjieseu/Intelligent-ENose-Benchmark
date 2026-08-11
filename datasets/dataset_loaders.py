@@ -78,16 +78,23 @@ class UCSDLoader(DatasetLoader):
     def load(self, 
              source_batches: List[int] = [1, 2],
              target_batches: List[int] = [3, 4, 5],
-             feature_type: str = 'steady_state',
+             feature_type: str = 'standard',
              normalize: bool = True,
              normalize_method: str = 'standard') -> Tuple:
         """
         Load UCSD dataset with specified source and target batches.
-        
+
+        The default protocol extracts 8 features per sensor (16 sensors),
+        yielding the standard 128-dimensional feature vector as described in
+        Vergara et al. (2012) and used throughout the published UCSD drift
+        literature. A legacy 16-dimensional variant using raw steady-state
+        readings only is available via feature_type='steady_state'.
+
         Args:
             source_batches: List of batch numbers for source domain
             target_batches: List of batch numbers for target domain
-            feature_type: Type of features ('steady_state', 'transient', 'raw')
+            feature_type: Feature extraction mode ('standard' for 128-dim,
+                'steady_state' for legacy 16-dim, 'raw' for raw readings)
             normalize: Whether to normalize data
             normalize_method: Normalization method
             
@@ -105,19 +112,21 @@ class UCSDLoader(DatasetLoader):
         logger.info(f"Loading UCSD dataset from {data_path}")
         
         # Load raw data
-        # Data format: 16 sensor readings + batch number + class label
         df = pd.read_csv(data_path, sep='\t', header=None)
         df.columns = [f'sensor_{i}' for i in range(16)] + ['batch', 'class']
         
-        # Extract features based on type
         if feature_type == 'raw':
             feature_cols = [f'sensor_{i}' for i in range(16)]
-        else:
-            # For steady_state and transient, additional feature extraction may be needed
-            # Here we use the raw sensor readings as features
+            X = df[feature_cols].values
+            logger.info("Using raw 16-dimensional sensor readings")
+        elif feature_type == 'steady_state':
             feature_cols = [f'sensor_{i}' for i in range(16)]
+            X = df[feature_cols].values
+            logger.info("Using legacy 16-dimensional steady-state features")
+        else:
+            X = self._extract_128d_features(df)
+            logger.info("Using standard 128-dimensional feature protocol")
         
-        X = df[feature_cols].values
         y = df['class'].values - 1  # Convert to 0-indexed
         batch_nums = df['batch'].values
         
@@ -138,9 +147,77 @@ class UCSDLoader(DatasetLoader):
         
         logger.info(f"Source domain: {X_source.shape[0]} samples, "
                     f"Target domain: {X_target.shape[0]} samples")
+        logger.info(f"Feature dimensionality: {X_source.shape[1]}")
         logger.info(f"Number of classes: {len(np.unique(y_target))}")
         
         return X_source, y_source, X_target, y_target
+    
+    @staticmethod
+    def _extract_128d_features(df: pd.DataFrame) -> np.ndarray:
+        """Extract 8 standard UCSD features per sensor (16 sensors = 128 dims).
+        
+        Features per sensor (Vergara et al., 2012):
+          0  max_response        -- maximum sensor response
+          1  rel_max_response    -- relative max response (to baseline)
+          2  slope              -- average slope of response
+          3  integral           -- integral of response curve
+          4  time_to_max        -- time to reach maximum response
+          5  steady_state       -- steady-state response value
+          6  recovery_slope     -- slope during recovery phase
+          7  area_ratio         -- ratio of integral to max response
+        """
+        n_samples = len(df)
+        n_sensors = 16
+        features = np.zeros((n_samples, n_sensors * 8))
+        
+        for s in range(n_sensors):
+            col = df.columns[s]
+            sensor_vals = df[col].values.astype(float)
+            
+            # Find baseline (first non-NaN value or median of initial segment)
+            baseline = np.nanmedian(sensor_vals[:50]) if np.isnan(sensor_vals[:50]).any() else np.median(sensor_vals[:50])
+            
+            # Max response
+            max_resp = np.max(sensor_vals) - baseline
+            
+            # Relative max response
+            rel_max = max_resp / (abs(baseline) + 1e-10)
+            
+            # Average slope
+            valid = sensor_vals[np.isfinite(sensor_vals)]
+            if len(valid) > 1:
+                slope = np.mean(np.diff(valid))
+            else:
+                slope = 0.0
+            
+            # Integral (trapezoidal approximation)
+            integral = np.trapz(valid, dx=1.0) if len(valid) > 1 else 0.0
+            
+            # Time to max (index of max response normalized)
+            max_idx = np.argmax(sensor_vals) if len(sensor_vals) > 0 else 0
+            time_to_max = max_idx / max(len(sensor_vals) - 1, 1)
+            
+            # Steady-state value (mean of last 10% of readings)
+            n_tail = max(int(len(sensor_vals) * 0.1), 1)
+            steady_state = np.mean(sensor_vals[-n_tail:]) - baseline if len(sensor_vals) >= n_tail else max_resp
+            
+            # Recovery slope (slope of last 20% of readings)
+            n_rec = max(int(len(sensor_vals) * 0.2), 2)
+            if len(sensor_vals) >= n_rec:
+                recovery_slope = np.mean(np.diff(sensor_vals[-n_rec:]))
+            else:
+                recovery_slope = 0.0
+            
+            # Area ratio
+            area_ratio = integral / (abs(max_resp) + 1e-10) if abs(max_resp) > 1e-10 else 0.0
+            
+            start_idx = s * 8
+            features[:, start_idx:start_idx + 8] = np.array([
+                max_resp, rel_max, slope, integral,
+                time_to_max, steady_state, recovery_slope, area_ratio
+            ])
+        
+        return features
 
 
 class CQULoader(DatasetLoader):

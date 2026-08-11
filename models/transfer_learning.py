@@ -28,7 +28,7 @@ class TCA:
     and matches their distributions by minimizing Maximum Mean Discrepancy (MMD).
     """
     
-    def __init__(self, n_components: int = 20, kernel_type: str = 'rbf', 
+    def __init__(self, n_components: int = 10, kernel_type: str = 'rbf', 
                  gamma: float = 1.0, mu: float = 0.1):
         """
         Initialize TCA.
@@ -137,7 +137,7 @@ class JDA:
     s.t. A^T K H K^T A = I
     """
     
-    def __init__(self, n_components: int = 20, kernel_type: str = 'rbf',
+    def __init__(self, n_components: int = 10, kernel_type: str = 'rbf',
                  gamma: float = 1.0, mu: float = 0.1, n_iter: int = 10):
         """
         Initialize JDA.
@@ -471,7 +471,7 @@ class DANN(nn.Module):
                 loss_dom_t = criterion_dom(domain_pred_t, d_t)
                 loss_dom = (loss_dom_s + loss_dom_t) / 2
                 
-                loss = loss_cls - alpha * loss_dom
+                loss = loss_cls + alpha * loss_dom
                 loss.backward()
                 optimizer_f.step()
                 
@@ -522,7 +522,7 @@ if __name__ == "__main__":
     print("Testing transfer learning methods...")
     
     # Create dummy data
-    n_source, n_target, n_features = 100, 80, 16
+    n_source, n_target, n_features = 100, 80, 128
     X_source = np.random.randn(n_source, n_features)
     X_target = np.random.randn(n_target, n_features) + 0.5  # Shifted distribution
     y_source = np.random.randint(0, 6, n_source)

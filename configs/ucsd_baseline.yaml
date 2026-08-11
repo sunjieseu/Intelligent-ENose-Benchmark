@@ -1,5 +1,10 @@
 # Configuration for Static Baseline Training
 # UCSD Dataset - Standard Evaluation Protocol
+#
+# NOTE: The released scripts use the normalized steady-state readings of the
+# 16-sensor array directly (16-dimensional input). The standard UCSD protocol
+# (8 features x 16 sensors = 128 dimensions) is a documented extension; when
+# enabled, update input_dim accordingly.
 
 dataset:
   name: 'ucsd'

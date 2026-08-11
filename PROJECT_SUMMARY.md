@@ -99,7 +99,7 @@ Intelligent-ENose-Benchmark/
 
 ```bash
 # Clone the repository
-git clone https://anonymous.4open.science/r/Intelligent-ENose-Benchmark.git
+git clone https://anonymous.4open.science/r/Intelligent-ENose-Benchmark-B022.git
 cd Intelligent-ENose-Benchmark
 
 # Create and activate virtual environment
@@ -212,7 +212,7 @@ X_source, y_source, X_target, y_target = load_ucsd(
 
 # Initialize and train DANN
 dann = DANN(
-    input_dim=16,
+    input_dim=128,
     hidden_dim=128,
     num_classes=6,
     alpha=1.0
@@ -238,7 +238,7 @@ support_set, query_set = create_fewshot_episode(
 
 # Initialize and train ProtoNet
 proto_net = PrototypicalNetwork(
-    input_dim=16, hidden_dim=64, embedding_dim=32
+    input_dim=128, hidden_dim=64, embedding_dim=32
 )
 
 # Training loop (see benchmarks/eval_fewshot.py for full example)

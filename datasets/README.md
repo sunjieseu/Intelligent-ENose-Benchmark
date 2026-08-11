@@ -71,6 +71,9 @@ X_train, y_train, X_test, y_test = load_cqu(
 
 ## 📊 Feature Types
 
+### Standard Feature Protocol (UCSD)
+The released UCSD scripts use the standard feature extraction protocol (eight statistical features per sensor, 16 x 8 = 128 dimensions) as established by Vergara et al. The default `feature_type='standard'` applies this protocol. A legacy 16-dimensional variant using normalized steady-state readings directly is available via `feature_type='steady_state'` for rapid prototyping.
+
 ### Steady-State Features
 - Maximum response
 - Minimum response

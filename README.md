@@ -97,7 +97,7 @@ Intelligent-ENose-Benchmark/
 
 ```bash
 # Clone the repository
-git clone https://anonymous.4open.science/r/Intelligent-ENose-Benchmark.git
+git clone https://anonymous.4open.science/r/Intelligent-ENose-Benchmark-B022.git
 cd Intelligent-ENose-Benchmark
 
 # Create virtual environment (recommended)
@@ -203,7 +203,7 @@ X_source, y_source, X_target, y_target = load_ucsd(source_batch=1, target_batch=
 
 # Initialize DANN
 model = DANN(
-    input_dim=16,
+    input_dim=128,
     hidden_dim=128,
     num_classes=6,
     alpha=1.0  # Trade-off parameter

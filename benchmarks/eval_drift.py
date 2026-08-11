@@ -125,7 +125,7 @@ def evaluate_sequential_batches(config):
         # Method 2: TCA + Classifier
         if config.get('methods', {}).get('tca', False):
             logger.info("Applying TCA + SVM...")
-            tca = TCA(n_components=20)
+            tca = TCA(n_components=10)
             X_transformed = tca.fit_transform(X_source, X_adapt)
             
             X_source_t = X_transformed[:len(X_source)]

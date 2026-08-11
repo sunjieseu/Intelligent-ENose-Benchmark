@@ -23,7 +23,7 @@ methods:
   
   # TCA parameters
   tca_params:
-    n_components: 20
+    n_components: 10
     kernel_type: 'rbf'
     gamma: 1.0
   

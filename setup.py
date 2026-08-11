@@ -14,7 +14,7 @@ setup(
     description="A comprehensive benchmark for robust intelligent E-nose systems under data scarcity and sensor drift",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://anonymous.4open.science/r/Intelligent-ENose-Benchmark",
+    url="https://anonymous.4open.science/r/Intelligent-ENose-Benchmark-B022/",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
