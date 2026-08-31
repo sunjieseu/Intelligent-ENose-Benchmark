@@ -11,8 +11,8 @@ from .metrics import (
 
 from .data_utils import (
     normalize_data,
-    split_batches,
-    create_episodes
+    split_into_batches,
+    create_episodes_for_fewshot
 )
 
 __all__ = [
@@ -21,6 +21,6 @@ __all__ = [
     'compute_fwd',
     'accuracy_score',
     'normalize_data',
-    'split_batches',
-    'create_episodes'
+    'split_into_batches',
+    'create_episodes_for_fewshot'
 ]

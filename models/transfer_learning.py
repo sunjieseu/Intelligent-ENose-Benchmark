@@ -44,6 +44,7 @@ class TCA:
         self.gamma = gamma
         self.mu = mu
         self.A = None  # Transformation matrix
+        self.X_fit = None  # Combined fit-time samples (for out-of-sample transform)
     
     def _kernel(self, X, Y):
         """Compute kernel matrix."""
@@ -72,6 +73,7 @@ class TCA:
         
         # Combine data
         X = np.vstack([X_source, X_target])
+        self.X_fit = X
         
         # Compute kernel matrix
         K = self._kernel(X, X)
@@ -94,8 +96,10 @@ class TCA:
         # Add small regularization for numerical stability
         A += 1e-6 * np.eye(n_total)
         
-        # Solve eigenvalue problem
-        eigenvalues, eigenvectors = np.linalg.eigh(B, A)
+        # Solve the generalized eigenvalue problem B v = lambda A v using
+        # scipy (numpy.linalg.eigh does not support generalized problems).
+        from scipy.linalg import eigh as _eigh
+        eigenvalues, eigenvectors = _eigh(B, A)
         
         # Sort by eigenvalues (descending)
         idx = np.argsort(eigenvalues)[::-1]
@@ -109,14 +113,13 @@ class TCA:
     def transform(self, X):
         """
         Transform data to transfer subspace.
-        
-        Args:
-            X: Input data
-            
-        Returns:
-            Transformed data
+
+        For kernel TCA, out-of-sample embeddings are computed as the kernel
+        between the new samples and the stored fit-time samples, projected by A.
         """
-        K = self._kernel(X, X)
+        if self.X_fit is None:
+            raise RuntimeError("TCA.transform called before fit")
+        K = self._kernel(X, self.X_fit)
         return K @ self.A
     
     def fit_transform(self, X_source, X_target):
@@ -253,7 +256,8 @@ class JDA:
             A_mat += 1e-6 * np.eye(n_total)
             
             # Solve
-            eigenvalues, eigenvectors = np.linalg.eigh(B_mat, A_mat)
+            from scipy.linalg import eigh as _eigh
+            eigenvalues, eigenvectors = _eigh(B_mat, A_mat)
             idx = np.argsort(eigenvalues)[::-1]
             eigenvectors = eigenvectors[:, idx]
             
@@ -386,7 +390,7 @@ class DANN(nn.Module):
         class_pred = self.label_predictor(features)
         
         # Apply gradient reversal and predict domain
-        reversed_features = self.grl(features, alpha)
+        reversed_features = GradientReversalLayer.apply(features, alpha)
         domain_pred = self.domain_discriminator(reversed_features)
         
         return class_pred, domain_pred.squeeze()
@@ -482,8 +486,8 @@ class DANN(nn.Module):
                     features_s = self.feature_extractor(X_s)
                     features_t = self.feature_extractor(X_t)
                 
-                domain_pred_s = self.domain_discriminator(features_s)
-                domain_pred_t = self.domain_discriminator(features_t)
+                domain_pred_s = self.domain_discriminator(features_s).squeeze(-1)
+                domain_pred_t = self.domain_discriminator(features_t).squeeze(-1)
                 
                 loss_dom_s = criterion_dom(domain_pred_s, d_s)
                 loss_dom_t = criterion_dom(domain_pred_t, d_t)
