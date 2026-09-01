@@ -113,19 +113,20 @@ X_processed = preprocess_data(
 After downloading, the structure should be:
 
 ```
-datasets/
-├── README.md              # This file
-├── download_ucsd.sh       # UCSD download script
-├── download_cqu.sh        # CQU download script
-├── dataset_loaders.py     # Unified loading interface
-└── data/                  # Downloaded data (not in git)
-    ├── ucsd/
-    │   ├── Datos3096.txt
-    │   └── drift_data.csv
-    └── cqu/
-        ├── batch1.csv
-        ├── batch2.csv
-        └── batch3.csv
+Intelligent-ENose-Benchmark/
+├── datasets/
+│   ├── README.md              # This file
+│   ├── download_ucsd.sh       # UCSD download script
+│   ├── download_cqu.sh       # CQU download script (template)
+│   ├── dataset_loaders.py     # Unified loading interface
+│   └── data/                  # Downloaded data (not in git)
+│       ├── ucsd/              # UCI ID 224
+│       │   └── Dataset/
+│       │       └── batch1.dat ... batch10.dat
+│       ├── ucsd270/           # UCI ID 270 (with concentration labels)
+│       │   └── batch1.dat ... batch10.dat
+│       └── gsalc/             # UCI ID 1081 (CQU low-concentration array)
+│           └── gsalc.csv
 ```
 
 ## 📝 Citation

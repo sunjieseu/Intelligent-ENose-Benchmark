@@ -113,13 +113,58 @@ pip install -e .
 
 ### Download Datasets
 
-```bash
-# Download UCSD Gas Sensor Drift Dataset
-bash datasets/download_ucsd.sh
+The benchmark expects all raw data under `data/` (excluded from git). Three
+UCI-hosted datasets are used; download each into its own subdirectory:
 
-# Download CQU E-Nose Drift Dataset
-bash datasets/download_cqu.sh
+```bash
+# 1) UCSD Gas Sensor Array Drift Dataset (UCI ID 224)
+#    16 MOS sensors, 6 gases, 13,910 samples, 10 batches over 36 months.
+#    -> data/ucsd/Dataset/batch1.dat ... batch10.dat
+mkdir -p data/ucsd
+curl -L -o data/ucsd/drift.zip \
+  "https://archive.ics.uci.edu/static/public/224/gas+sensor+array+drift+dataset.zip"
+unzip -o data/ucsd/drift.zip -d data/ucsd/
+rm -f data/ucsd/drift.zip
+
+# 2) Gas Sensor Array Drift Dataset at Different Concentrations (UCI ID 270)
+#    Same UCSD measurements, but each row also carries the gas concentration
+#    (format: "class;concentration feature1:v1 ..."). Used by the unified
+#    benchmark via `--dataset 270`.
+#    -> data/ucsd270/batch1.dat ... batch10.dat
+mkdir -p data/ucsd270
+curl -L -o data/ucsd270/drift270.zip \
+  "https://archive.ics.uci.edu/static/public/270/gas+sensor+array+drift+dataset+at+different+concentrations.zip"
+unzip -o data/ucsd270/drift270.zip -d data/ucsd270/
+rm -f data/ucsd270/drift270.zip
+
+# 3) GSALC - Gas Sensor Array Low-Concentration (UCI ID 1081, CQU array)
+#    10 MOS sensors, 6 gases at 50/100/200 ppb, 90 samples, 9000 response
+#    points per sample. Used for the cross-array validation
+#    (benchmarks/eval_gsalc.py).
+#    -> data/gsalc/gsalc.csv
+mkdir -p data/gsalc
+curl -L -o data/gsalc/gsalc.zip \
+  "https://archive.ics.uci.edu/static/public/1081/gas+sensor+array+low-concentration.zip"
+unzip -o data/gsalc/gsalc.zip -d data/gsalc/
+rm -f data/gsalc/gsalc.zip
 ```
+
+Alternative one-liner with the `ucimlrepo` Python package:
+
+```python
+from ucimlrepo import fetch_ucirepo
+for ds_id in (224, 270, 1081):
+    fetch_ucirepo(id=ds_id)   # fetches metadata + data from UCI
+```
+
+Notes:
+
+- On Windows (PowerShell), replace `curl -L -o` with
+  `Invoke-WebRequest -OutFile` or use `wget`, and unpack the `.zip` files
+  with `Expand-Archive`.
+- `datasets/download_ucsd.sh` automates download 1; `datasets/download_cqu.sh`
+  contains placeholder URLs and is kept only as a template - use the direct
+  UCI links above instead.
 
 ### Run Baseline Experiments
 
