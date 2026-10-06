@@ -8,6 +8,7 @@ This module implements adaptive drift compensation strategies for long-term E-no
 """
 
 import numpy as np
+import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -60,21 +61,14 @@ class OrthogonalSignalCorrection:
         if Y.ndim == 1:
             Y = Y.reshape(-1, 1)
         
-        # Project X onto Y
-        # T = X * (Y' * X)^-1 * Y' (scores)
-        # This captures the variation in X that is correlated with Y
-        
-        # Compute projection matrix
-        XtY = X_std.T @ Y
-        P_y = Y @ np.linalg.pinv(XtY) @ X_std.T
-        
-        # Compute orthogonal components
-        # The part of X orthogonal to Y
-        P_orth = np.eye(X_std.shape[1]) - P_y.T @ P_y
-        
-        # Perform PCA on orthogonal part to find directions to remove
-        # Find eigenvectors corresponding to largest eigenvalues
-        cov_orth = X_std.T @ P_orth @ X_std
+        Y = Y.astype(float)
+
+        # Regress X on Y, then find feature-space directions in the residual.
+        # These directions are compatible with transform(), which projects X by
+        # X @ P_orthogonal @ P_orthogonal.T.
+        beta = np.linalg.pinv(Y) @ X_std
+        residual = X_std - Y @ beta
+        cov_orth = residual.T @ residual
         eigenvalues, eigenvectors = np.linalg.eigh(cov_orth)
         
         # Sort by eigenvalues (descending)
@@ -189,13 +183,23 @@ class ClassifierReplacementEnsemble:
         Returns:
             Predicted labels
         """
-        # Get predictions from all classifiers
-        all_preds = np.array([clf.predict_proba(X) for clf in self.classifiers])
-        
+        # Get predictions from all classifiers; members trained on drifted
+        # batches may cover different class sets (e.g., an absent gas), so
+        # align predict_proba outputs on the union of classes and assign
+        # zero probability to unseen classes before averaging.
+        global_classes = np.unique(
+            np.concatenate([clf.classes_ for clf in self.classifiers]))
+        n_cls = len(global_classes)
+        all_preds = np.zeros((len(self.classifiers), len(X), n_cls))
+        for i, clf in enumerate(self.classifiers):
+            proba = clf.predict_proba(X)
+            for j, c in enumerate(clf.classes_):
+                all_preds[i, :, int(np.where(global_classes == c)[0][0])] = proba[:, j]
+
         # Weighted average
         weighted_preds = np.average(all_preds, axis=0, weights=self.weights)
-        predictions = np.argmax(weighted_preds, axis=1)
-        
+        predictions = global_classes[np.argmax(weighted_preds, axis=1)]
+
         return predictions
     
     def update(self, X_new: np.ndarray, y_new: np.ndarray):
@@ -428,6 +432,195 @@ class TestTimeAdaptation:
             _, predicted = torch.max(output, 1)
         
         return predicted.numpy()
+
+
+class _HeadOnlyAdapter:
+    """Shared utilities for lightweight tabular TTA adapters."""
+
+    def __init__(self, head: nn.Module, conf_tau: float = 0.7,
+                 steps: int = 3, lr: float = 1e-3):
+        self.head = head
+        self.conf_tau = conf_tau
+        self.steps = steps
+        self.lr = lr
+        self.anchor_state = [p.detach().clone() for p in head.parameters()]
+
+    def _features(self, X_unlabeled) -> torch.Tensor:
+        if isinstance(X_unlabeled, torch.Tensor):
+            return X_unlabeled.detach().float()
+        return torch.tensor(X_unlabeled, dtype=torch.float32)
+
+    def _entropy(self, logits: torch.Tensor) -> torch.Tensor:
+        prob = F.softmax(logits, dim=1)
+        return -(prob * F.log_softmax(logits, dim=1)).sum(1)
+
+    def _stats(self, before: torch.Tensor, after: torch.Tensor, n_selected: int) -> dict:
+        return {
+            "n_selected": int(n_selected),
+            "mean_entropy_before": float(before.mean().item()) if before.numel() else 0.0,
+            "mean_entropy_after": float(after.mean().item()) if after.numel() else 0.0,
+        }
+
+
+class LightweightEATA(_HeadOnlyAdapter):
+    """Head-only EATA-style reliable-sample adaptation for tabular features."""
+
+    def __init__(self, head: nn.Module, conf_tau: float = 0.7,
+                 entropy_margin: float = 1.6, steps: int = 1,
+                 lr: float = 5e-4, reg: float = 1e-3):
+        super().__init__(head, conf_tau=conf_tau, steps=steps, lr=lr)
+        self.entropy_margin = entropy_margin
+        self.reg = reg
+
+    def adapt(self, X_unlabeled) -> dict:
+        Z = self._features(X_unlabeled)
+        self.head.eval()
+        with torch.no_grad():
+            logits0 = self.head(Z)
+            prob0 = F.softmax(logits0, dim=1)
+            conf, pseudo = prob0.max(1)
+            entropy0 = self._entropy(logits0)
+        sel = (conf > self.conf_tau) & (entropy0 < self.entropy_margin)
+        if sel.sum() < 2:
+            return self._stats(entropy0, entropy0, int(sel.sum().item()))
+
+        # Keep one confident sample per predicted class when possible to reduce redundancy.
+        keep = []
+        for cls in torch.unique(pseudo[sel]):
+            idx = torch.where(sel & (pseudo == cls))[0]
+            best = idx[torch.argmax(conf[idx])]
+            keep.append(best)
+        keep = torch.stack(keep)
+        if keep.numel() < 2:
+            keep = torch.where(sel)[0]
+
+        opt = torch.optim.SGD(self.head.parameters(), lr=self.lr)
+        self.head.train()
+        for _ in range(self.steps):
+            logits = self.head(Z[keep])
+            loss = self._entropy(logits).mean()
+            for param, anchor in zip(self.head.parameters(), self.anchor_state):
+                loss = loss + self.reg * (param - anchor).pow(2).mean()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+        self.head.eval()
+        with torch.no_grad():
+            entropy1 = self._entropy(self.head(Z))
+        return self._stats(entropy0, entropy1, int(keep.numel()))
+
+
+class LightweightCoTTA(_HeadOnlyAdapter):
+    """Head-only CoTTA-style teacher consistency and stochastic restoration."""
+
+    def __init__(self, head: nn.Module, conf_tau: float = 0.7,
+                 steps: int = 1, lr: float = 5e-4, ema: float = 0.99,
+                 restore_prob: float = 0.01, noise_std: float = 0.01):
+        super().__init__(head, conf_tau=conf_tau, steps=steps, lr=lr)
+        self.teacher = copy.deepcopy(head)
+        self.ema = ema
+        self.restore_prob = restore_prob
+        self.noise_std = noise_std
+
+    def _augment(self, Z: torch.Tensor) -> torch.Tensor:
+        return Z + torch.randn_like(Z) * self.noise_std
+
+    def _update_teacher(self):
+        with torch.no_grad():
+            for tp, sp in zip(self.teacher.parameters(), self.head.parameters()):
+                tp.mul_(self.ema).add_(sp, alpha=1 - self.ema)
+
+    def _restore(self):
+        if self.restore_prob <= 0:
+            return
+        with torch.no_grad():
+            for param, anchor in zip(self.head.parameters(), self.anchor_state):
+                mask = torch.rand_like(param) < self.restore_prob
+                param[mask] = anchor[mask]
+
+    def adapt(self, X_unlabeled) -> dict:
+        Z = self._features(X_unlabeled)
+        self.head.eval()
+        with torch.no_grad():
+            logits0 = self.head(Z)
+            conf, _ = F.softmax(logits0, dim=1).max(1)
+            entropy0 = self._entropy(logits0)
+            teacher_prob = F.softmax(self.teacher(self._augment(Z)), dim=1)
+        sel = conf > self.conf_tau
+        if sel.sum() < 2:
+            return self._stats(entropy0, entropy0, int(sel.sum().item()))
+
+        opt = torch.optim.SGD(self.head.parameters(), lr=self.lr)
+        self.head.train()
+        for _ in range(self.steps):
+            logits = self.head(self._augment(Z[sel]))
+            log_prob = F.log_softmax(logits, dim=1)
+            loss = F.kl_div(log_prob, teacher_prob[sel], reduction="batchmean")
+            loss = loss + self._entropy(logits).mean()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+        self.head.eval()
+        self._restore()
+        self._update_teacher()
+        with torch.no_grad():
+            entropy1 = self._entropy(self.head(Z))
+        return self._stats(entropy0, entropy1, int(sel.sum().item()))
+
+
+class LightweightRoTTA(_HeadOnlyAdapter):
+    """Head-only RoTTA-style adaptation with bounded confident memory."""
+
+    def __init__(self, head: nn.Module, conf_tau: float = 0.7,
+                 steps: int = 1, lr: float = 5e-4, memory_size: int = 64,
+                 per_class: int = 8):
+        super().__init__(head, conf_tau=conf_tau, steps=steps, lr=lr)
+        self.memory_size = memory_size
+        self.per_class = per_class
+        self.memory_x = deque(maxlen=memory_size)
+        self.memory_y = deque(maxlen=memory_size)
+        self.memory_conf = deque(maxlen=memory_size)
+
+    def _balanced_memory(self) -> torch.Tensor:
+        if not self.memory_x:
+            return torch.empty(0)
+        ys = np.array(self.memory_y)
+        keep = []
+        for cls in np.unique(ys):
+            idx = np.where(ys == cls)[0]
+            conf = np.array(self.memory_conf)[idx]
+            keep.extend(idx[np.argsort(conf)[-self.per_class:]].tolist())
+        return torch.stack([self.memory_x[i] for i in keep])
+
+    def adapt(self, X_unlabeled) -> dict:
+        Z = self._features(X_unlabeled)
+        self.head.eval()
+        with torch.no_grad():
+            logits0 = self.head(Z)
+            prob0 = F.softmax(logits0, dim=1)
+            conf, pseudo = prob0.max(1)
+            entropy0 = self._entropy(logits0)
+        sel = conf > self.conf_tau
+        for z, y, c in zip(Z[sel], pseudo[sel], conf[sel]):
+            self.memory_x.append(z.detach().clone())
+            self.memory_y.append(int(y.item()))
+            self.memory_conf.append(float(c.item()))
+        Zm = self._balanced_memory()
+        if Zm.numel() == 0 or Zm.shape[0] < 2:
+            return self._stats(entropy0, entropy0, int(sel.sum().item()))
+
+        opt = torch.optim.SGD(self.head.parameters(), lr=self.lr)
+        self.head.train()
+        for _ in range(self.steps):
+            logits = self.head(Zm)
+            loss = self._entropy(logits).mean()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+        self.head.eval()
+        with torch.no_grad():
+            entropy1 = self._entropy(self.head(Z))
+        return self._stats(entropy0, entropy1, int(sel.sum().item()))
 
 
 class ActiveLearningSelector:

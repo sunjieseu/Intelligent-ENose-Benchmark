@@ -223,6 +223,46 @@ class TestDriftCompensation:
         tta = TestTimeAdaptation(model, adaptation_lr=0.001)
         assert tta is not None
 
+    def test_lightweight_eata_skips_high_entropy_samples(self):
+        """EATA-light should not update on uncertain unlabeled batches."""
+        from models.drift_compensation import LightweightEATA
+
+        head = torch.nn.Linear(4, 3)
+        with torch.no_grad():
+            head.weight.zero_()
+            head.bias.zero_()
+        adapter = LightweightEATA(head, conf_tau=0.9)
+
+        stats = adapter.adapt(torch.randn(8, 4))
+
+        assert stats["n_selected"] == 0
+
+    def test_lightweight_rotta_memory_is_capped(self):
+        """RoTTA-light should maintain bounded rolling memory."""
+        from models.drift_compensation import LightweightRoTTA
+
+        head = torch.nn.Linear(4, 3)
+        adapter = LightweightRoTTA(head, memory_size=5, conf_tau=0.0)
+
+        adapter.adapt(torch.randn(8, 4))
+
+        assert len(adapter.memory_x) <= 5
+
+    def test_lightweight_cotta_updates_teacher(self):
+        """CoTTA-light should update its EMA teacher after adaptation."""
+        from models.drift_compensation import LightweightCoTTA
+
+        torch.manual_seed(0)
+        head = torch.nn.Linear(4, 3)
+        adapter = LightweightCoTTA(head, conf_tau=0.0, restore_prob=0.0)
+        before = [p.detach().clone() for p in adapter.teacher.parameters()]
+
+        stats = adapter.adapt(torch.randn(8, 4))
+
+        after = list(adapter.teacher.parameters())
+        assert stats["n_selected"] > 0
+        assert any(not torch.allclose(a, b) for a, b in zip(after, before))
+
 
 class TestUtilityFunctions:
     """Test utility functions."""
@@ -253,6 +293,89 @@ class TestUtilityFunctions:
         from utils.data_utils import normalize_data, create_temporal_batches
         assert normalize_data is not None
         assert create_temporal_batches is not None
+
+
+class TestRevisionBaselines:
+    """Test revision-only benchmark helper functions."""
+
+    def test_update_memory_prototypes_blends_toward_confident_clusters(self):
+        from benchmarks.eval_revision import update_memory_prototypes
+
+        class IdentitySSL:
+            def transform(self, X):
+                return np.asarray(X, dtype=float)
+
+        head = torch.nn.Linear(2, 2)
+        with torch.no_grad():
+            head.weight.copy_(torch.tensor([[1.0, 0.0], [0.0, 1.0]]))
+            head.bias.zero_()
+        model = {
+            'head': head,
+            'protos': {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0])},
+            'anchor_protos': {0: np.array([1.0, 0.0]), 1: np.array([0.0, 1.0])},
+            'mode': 'lifecycle_memory',
+        }
+
+        updated = update_memory_prototypes(
+            IdentitySSL(), model, np.array([[4.0, 0.0], [0.0, 4.0]]),
+            anchor_alpha=0.0, memory_alpha=0.5, conf_tau=0.75)
+
+        assert updated == 2
+        assert np.allclose(model['protos'][0], np.array([2.5, 0.0]))
+        assert np.allclose(model['protos'][1], np.array([0.0, 2.5]))
+
+    def test_update_memory_prototypes_anchor_limits_drift(self):
+        from benchmarks.eval_revision import update_memory_prototypes
+
+        class IdentitySSL:
+            def transform(self, X):
+                return np.asarray(X, dtype=float)
+
+        head = torch.nn.Linear(2, 1)
+        with torch.no_grad():
+            head.weight.copy_(torch.tensor([[1.0, 0.0]]))
+            head.bias.zero_()
+        model = {
+            'head': head,
+            'protos': {0: np.array([1.0, 0.0])},
+            'anchor_protos': {0: np.array([1.0, 0.0])},
+            'mode': 'lifecycle_memory',
+        }
+
+        updated = update_memory_prototypes(
+            IdentitySSL(), model, np.array([[5.0, 0.0]]),
+            anchor_alpha=0.2, memory_alpha=0.5, conf_tau=0.0)
+
+        assert updated == 1
+        assert np.allclose(model['protos'][0], np.array([2.6, 0.0]))
+
+    def test_adapt_head_sar_skips_high_entropy_samples(self):
+        from benchmarks.eval_revision import adapt_head_sar
+
+        class IdentitySSL:
+            def transform(self, X):
+                return np.asarray(X, dtype=float)
+
+        head = torch.nn.Linear(2, 2)
+        with torch.no_grad():
+            head.weight.zero_()
+            head.bias.zero_()
+        model = {'head': head, 'mode': 'sar_tta'}
+
+        selected = adapt_head_sar(
+            IdentitySSL(), model, np.array([[1.0, 0.0], [0.0, 1.0]]),
+            conf_tau=0.9)
+
+        assert selected == 0
+
+    def test_linear_macs_counts_linear_layers_only(self):
+        from benchmarks.eval_deployment import linear_macs, count_parameters
+
+        model = torch.nn.Sequential(
+            torch.nn.Linear(4, 3), torch.nn.ReLU(), torch.nn.Linear(3, 2))
+
+        assert linear_macs(model) == 18
+        assert count_parameters(model) == 23
 
 
 if __name__ == "__main__":

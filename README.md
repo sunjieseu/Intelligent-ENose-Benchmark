@@ -147,13 +147,24 @@ curl -L -o data/gsalc/gsalc.zip \
   "https://archive.ics.uci.edu/static/public/1081/gas+sensor+array+low-concentration.zip"
 unzip -o data/gsalc/gsalc.zip -d data/gsalc/
 rm -f data/gsalc/gsalc.zip
+
+# 4) Twin Gas Sensor Arrays (UCI ID 361)
+#    5 nominally identical 8-MOX arrays, 4 gases x 10 concentrations,
+#    640 raw 100 Hz resistance traces over 22 days. Used for the
+#    cross-device drift check (benchmarks/eval_twin.py).
+#    -> data/twin/data1/B{u}_G{gas}_F{conc}_R{rep}.txt
+mkdir -p data/twin
+curl -L -o data/twin/twin.zip \
+  "https://archive.ics.uci.edu/static/public/361/twin+gas+sensor+arrays.zip"
+unzip -o data/twin/twin.zip -d data/twin/
+rm -f data/twin/twin.zip
 ```
 
 Alternative one-liner with the `ucimlrepo` Python package:
 
 ```python
 from ucimlrepo import fetch_ucirepo
-for ds_id in (224, 270, 1081):
+for ds_id in (224, 270, 1081, 361):
     fetch_ucirepo(id=ds_id)   # fetches metadata + data from UCI
 ```
 
@@ -177,6 +188,15 @@ python benchmarks/eval_drift.py --config configs/ucisd_drift.yaml
 
 # Evaluate few-shot learning (N-way K-shot)
 python benchmarks/eval_fewshot.py --config configs/ucisd_fewshot.yaml
+
+# Cross-device drift stream on the Twin Gas Sensor Arrays (UCI 361)
+# Source: board 1; sequential targets: boards 2-5; 5 seeds.
+python benchmarks/eval_twin.py --seeds 7 21 42 87 123
+
+# Protocol re-anchoring: identical models under the strict protocol vs
+# the literature-style pooled protocol (quantifies protocol-induced
+# inflation; writes results/reanchor_multiseed.json).
+python benchmarks/eval_reanchor.py --seeds 7 21 42 87 123
 ```
 
 ## 📊 Supported Datasets
@@ -184,6 +204,7 @@ python benchmarks/eval_fewshot.py --config configs/ucisd_fewshot.yaml
 | Dataset | Target Gases | Sensors | Samples | Duration | Use Case |
 |---------|-------------|---------|---------|----------|----------|
 | **UCSD/UCI Drift** | 6 gases | 16 MOS | 13,910 | 36 months | Long-term drift benchmark |
+| **Twin Gas Sensor Arrays (UCI 361)** | 4 gases | 5 × 8 MOX | 640 raw traces | 22 days | Cross-device drift (eval_twin.py) |
 | **CQU E-Nose Drift** | 6 gases | 10×8 MOS | 1,604 | 3 batches | Board + time drift |
 | **Beef E-Nose** | Beef spoilage | 11 MOS | 2,220 | Variable | Humidity/background shift |
 | **Wine Spoilage** | Wine spoilage | 6 MOS | ~300 | Short-term | Short-term drift |

@@ -168,7 +168,7 @@ def evaluate_fewshot(config):
     
     # Compute statistics
     mean_accuracy = np.mean(accuracies)
-    std_accuracy = np.std(accuracies)
+    std_accuracy = np.std(accuracies, ddof=1) if len(accuracies) > 1 else 0.0
     ci_95 = 1.96 * std_accuracy / np.sqrt(len(accuracies))
     
     logger.info("\n" + "=" * 60)

@@ -20,7 +20,15 @@ This directory contains scripts and utilities for downloading, preprocessing, an
 - **Batches**: 3 batches
 - **Download**: `bash download_cqu.sh`
 
-### 3. Additional Datasets
+### 3. Twin Gas Sensor Arrays (UCI ID 361)
+- **Description**: Calibration-transfer / cross-device drift dataset (Fonollosa et al., Sens. Actuators B 236, 2016)
+- **Gases**: 4 gases (CO, Ethanol, Ethylene, Methane) x 10 concentration levels
+- **Sensors**: 5 nominally identical 8-MOX arrays (B1..B5)
+- **Samples**: 640 raw 100 Hz resistance traces (160 files for B1--B3, 80 for B4/B5), recorded over 22 days
+- **Loader**: `datasets/twin_loader.py` (baseline-referenced relative response + the same 8 descriptors per channel -> 64-dim features; cached to `twin_features64.npz`)
+- **Evaluation**: `benchmarks/eval_twin.py` (source = board 1; sequential targets = boards 2--5; source-only normalization; stratified 50/50 adapt/eval halves; 5 seeds)
+
+### 4. Additional Datasets
 - **Beef E-Nose**: Beef spoilage detection with humidity variations
 - **Wine Spoilage**: Short-term drift in wine quality monitoring
 - **Air Quality**: Environmental monitoring with MOX sensors
@@ -125,8 +133,11 @@ Intelligent-ENose-Benchmark/
 │       │       └── batch1.dat ... batch10.dat
 │       ├── ucsd270/           # UCI ID 270 (with concentration labels)
 │       │   └── batch1.dat ... batch10.dat
-│       └── gsalc/             # UCI ID 1081 (CQU low-concentration array)
-│           └── gsalc.csv
+│       ├── gsalc/             # UCI ID 1081 (CQU low-concentration array)
+│       │   └── gsalc.csv
+│       └── twin/              # UCI ID 361 (twin gas sensor arrays)
+│           └── data1/
+│               └── B1_GEa_F010_R1.txt ... (640 raw trace files)
 ```
 
 ## 📝 Citation

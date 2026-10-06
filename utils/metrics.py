@@ -175,7 +175,7 @@ def compute_confidence_interval(scores: np.ndarray, confidence: float = 0.95) ->
         Tuple of (mean, std, ci_lower, ci_upper)
     """
     mean = np.mean(scores)
-    std = np.std(scores)
+    std = np.std(scores, ddof=1) if len(scores) > 1 else 0.0
     
     # Compute confidence interval
     n = len(scores)
@@ -241,7 +241,7 @@ def compute_drift_metrics(batch_accuracies: List[float]) -> Dict:
         'performance_degradation': batch_accuracies[0] - batch_accuracies[-1],
         'max_accuracy': np.max(batch_accuracies),
         'min_accuracy': np.min(batch_accuracies),
-        'std_accuracy': np.std(batch_accuracies),
+        'std_accuracy': np.std(batch_accuracies, ddof=1) if len(batch_accuracies) > 1 else 0.0,
         'n_batches': n_batches
     }
     

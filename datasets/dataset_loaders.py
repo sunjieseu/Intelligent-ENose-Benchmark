@@ -66,6 +66,7 @@ class DatasetLoader:
         elif method == 'minmax':
             scaler = MinMaxScaler()
             X_processed = scaler.fit_transform(X_processed)
+            X_processed = np.clip(X_processed, 0.0, 1.0)
         else:
             raise ValueError(f"Unknown normalization method: {method}")
         

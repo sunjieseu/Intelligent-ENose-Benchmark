@@ -96,6 +96,18 @@ def state_bytes(module) -> int:
     return buf.getbuffer().nbytes
 
 
+def count_parameters(module: nn.Module) -> int:
+    return int(sum(p.numel() for p in module.parameters()))
+
+
+def linear_macs(module: nn.Module) -> int:
+    total = 0
+    for layer in module.modules():
+        if isinstance(layer, nn.Linear):
+            total += layer.in_features * layer.out_features
+    return int(total)
+
+
 def quant_dynamic(module: nn.Module) -> nn.Module:
     return torch.ao.quantization.quantize_dynamic(
         module, {nn.Linear}, dtype=torch.qint8)
@@ -203,6 +215,8 @@ def main():
         results[name] = {
             'fp32_kb': round(fp32_b / 1024, 1),
             'int8_kb': round(q_b / 1024, 1),
+            'params': count_parameters(model),
+            'macs_per_sample': linear_macs(model),
             'latency_ms': round(lat, 3),
             'latency_int8_ms': round(lat_q, 3),
             'peak_ram_mb': round(ram, 2),
@@ -299,7 +313,9 @@ def main():
     tta_ms = (time.perf_counter() - t0) * 1e3
     ram_adapt = measure_peak_ram(lambda xb: tta_adapt(tta, xb), X2_ad_t)
     results['tta_update'] = {'update_ms_per_batch': round(tta_ms, 2),
-                             'peak_ram_mb': round(ram_adapt, 2)}
+                             'peak_ram_mb': round(ram_adapt, 2),
+                             'params_updated': count_parameters(tta.net[-1]),
+                             'macs_per_sample': linear_macs(tta)}
     logger.info(f"tta_update: {tta_ms:.2f} ms/batch, ram={ram_adapt:.2f}MB")
 
     # ---- SVM (sklearn) ----
@@ -310,6 +326,8 @@ def main():
     svm_ms = (time.perf_counter() - t0) * 1e3 / len(X2_ev)
     acc_svm = accuracy_score(y2_ev, svm.predict(scale(X2_ev)))
     results['svm'] = {'model_kb': round(svm_b / 1024, 1),
+                      'support_vectors': int(svm.support_vectors_.shape[0]),
+                      'state_kb': round(svm.support_vectors_.nbytes / 1024, 1),
                       'latency_ms_per_sample': round(svm_ms, 3),
                       'acc': round(acc_svm, 4)}
     logger.info(f"svm: model={svm_b/1024:.1f}KB lat={svm_ms:.3f}ms acc={acc_svm:.3f}")

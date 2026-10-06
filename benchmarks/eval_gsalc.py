@@ -114,9 +114,15 @@ def scale_app(X, s):
 
 
 def main():
+    global SEED
     ap = argparse.ArgumentParser()
     ap.add_argument('--csv', required=True)
+    ap.add_argument('--seed', type=int, default=SEED)
     args = ap.parse_args()
+
+    SEED = args.seed
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
 
     X, y, conc, classes = load_gsalc(args.csv)
     logger.info(f"GSALC: {X.shape[0]} samples, {X.shape[1]} dims, classes={classes}")
@@ -243,8 +249,10 @@ def main():
             accs.append(accuracy_score(yte2[rest], pred))
         results[m_name] = {'acc': float(np.mean(accs))}
 
+    fname = ('gsalc_validation.json' if SEED == 42
+             else f'gsalc_validation_s{SEED}.json')
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       'results', 'gsalc_validation.json')
+                       'results', fname)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'w') as f:
         json.dump({'dataset': 'gsalc', 'seed': SEED,

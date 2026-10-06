@@ -195,8 +195,7 @@ class AttentionFusion(nn.Module):
         attention_weights = torch.softmax(attention_scores, dim=1)
         
         # Apply attention weights: [batch_size, n_sensors, 1] * [batch_size, n_sensors, sensor_dim]
-        attention_weights = attention_weights.unsqueeze(2)
-        X_weighted = attention_weights * X
+        X_weighted = attention_weights.unsqueeze(2) * X
         
         # Sum across sensors: [batch_size, sensor_dim]
         X_fused = X_weighted.sum(dim=1)

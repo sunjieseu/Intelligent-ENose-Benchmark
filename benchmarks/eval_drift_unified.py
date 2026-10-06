@@ -331,10 +331,11 @@ def energy_distance(X_ref, X_new, sub=500, seed=0):
     """Drift indicator s_t: squared energy distance between the reference
     (source) feature distribution and the incoming batch.
 
-    E^2 = 2 E||X-Y|| - E||X-X'|| - E||Y-Y'||, an unbiased, parameter-free
-    estimator of 2* divergence between distributions (Szekely & Rizzo).
-    Chosen over MMD because it needs no kernel bandwidth, and over KS because
-    it is multivariate. s_t in [0, 1] after normalization by feature scale.
+    E^2 = 2 E||X-Y|| - E||X-X'|| - E||Y-Y'||, a parameter-free
+    divergence between distributions (Szekely & Rizzo). Inputs are already
+    source-z-scored; the scale below is only a global nondimensionalization
+    factor and does not reweight individual features. Chosen over MMD because
+    it needs no kernel bandwidth, and over KS because it is multivariate.
     """
     rng = np.random.default_rng(seed)
     Xr = X_ref[rng.choice(len(X_ref), min(sub, len(X_ref)), replace=False)]
