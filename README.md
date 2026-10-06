@@ -1,22 +1,29 @@
-# Intelligent E-Nose Benchmark
+# Deployment-Protocol Electronic-Nose Benchmark
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
 
-## 📖 Overview
+## Overview
 
-**Intelligent-ENose-Benchmark** is a comprehensive, open-source framework for building robust intelligent electronic nose (E-nose) systems under **data scarcity** and **sensor drift** challenges. This project provides:
+**Intelligent-ENose-Benchmark** is the code and result framework for a protocol-audit benchmark of electronic-nose machine learning under **sensor drift**, **data scarcity**, and **target-access constraints**. The current manuscript framing is not a generic review benchmark; it tests how deployment-relevant claims change when preprocessing leakage is removed, adaptation and evaluation halves are disjoint, chronological order is preserved where required, and forgetting is measured explicitly. This project provides:
 
 - ✅ **Unified Information Fusion Perspective**: Systematic integration of Transfer Learning (TL), Few-Shot Learning (FSL), and Adaptive Drift Compensation (ADC)
 - ✅ **Lifecycle-Aware Hierarchical Taxonomy**: Three synergistic levels (Feature-Level → Knowledge-Level → Decision-Level)
-- ✅ **Fair Comparison Benchmark**: Standardized evaluation protocols with consistent metrics (FWT/BWT, N-way K-shot accuracy)
-- ✅ **Open-Source Repository**: Complete implementations of typical intelligent algorithms and evaluation protocols
+- ✅ **Deployment-Protocol Benchmark**: Source-only normalization, disjoint adaptation/evaluation halves, access-stratified reporting, chronological prequential checks, and FWT/BWT metrics
+- ✅ **Open-Source Repository**: Implementations of the baseline, adaptation, few-shot, lifecycle, footprint, leakage, and figure-generation protocols used in the manuscript
 - ✅ **Public Dataset Support**: Scripts for downloading and preprocessing major E-nose datasets (UCSD, CQU, etc.)
 
-This project accompanies the review paper: **"Building Robust Intelligent E-Nose Systems Under Data Scarcity and Sensor Drift: A Comprehensive Review"** (Nature-style format).
+This project accompanies the manuscript: **"Protocol Choices, Not Algorithms Alone, Determine Electronic-Nose Drift Benchmark Conclusions"** (Nature-style format).
 
-## 🏗️ Framework Architecture
+## Recent revision updates
+
+- Added head-only tabular `CoTTA-light`, `EATA-light`, and `RoTTA-light` continual test-time adaptation controls, with original-method citations and five-seed UCSD results.
+- Repaired foundational bibliography entries for DeepJDOT, CDAN, Relation Network, EWC, continual learning, and test-time adaptation sources.
+- Added stricter manuscript checks for chronological evaluation, protocol leakage, feature-space geometry, Table 3 method reporting, Table 5 footprint semantics, and energy-distance trigger wording.
+- Regenerated manuscript figures and benchmark summaries after adding the modern TTA-light rows.
+
+## Framework Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -39,7 +46,7 @@ This project accompanies the review paper: **"Building Robust Intelligent E-Nose
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 Intelligent-ENose-Benchmark/
@@ -91,7 +98,7 @@ Intelligent-ENose-Benchmark/
     └── test_benchmarks.py
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -199,7 +206,7 @@ python benchmarks/eval_twin.py --seeds 7 21 42 87 123
 python benchmarks/eval_reanchor.py --seeds 7 21 42 87 123
 ```
 
-## 📊 Supported Datasets
+## Supported Datasets
 
 | Dataset | Target Gases | Sensors | Samples | Duration | Use Case |
 |---------|-------------|---------|---------|----------|----------|
@@ -211,7 +218,7 @@ python benchmarks/eval_reanchor.py --seeds 7 21 42 87 123
 | **Air Quality** | CO, NOx, O₃ | 5 MOX + T/RH | 9,358 | 1 year | Env. drift/noise |
 | **UCI Low-Concentration** | Multi-gas (ppb) | 10 MOS | 13,910 | 36 days | Low-conc. challenge |
 
-## 🧪 Implemented Algorithms
+## Implemented Algorithms
 
 ### Feature-Level Fusion (Level 1)
 - **Concatenation**: Direct feature stacking
@@ -238,8 +245,12 @@ python benchmarks/eval_reanchor.py --seeds 7 21 42 87 123
 - **CRE**: Classifier Replacement Ensemble
 - **WWH-SSO**: Weighted Weighted Histogram - Sequential Semi-supervised
 - **TTA**: Test-Time Adaptation (Entropy minimization)
+- **SAR-style TTA**: Selective entropy update with an anchor penalty
+- **CoTTA-light**: Head-only teacher-consistency adaptation for tabular features
+- **EATA-light**: Head-only reliable-sample adaptation with anti-forgetting penalty
+- **RoTTA-light**: Head-only rolling-memory adaptation for dynamic streams
 
-## 📈 Evaluation Metrics
+## Evaluation Metrics
 
 ### Standard Classification
 - Accuracy, Precision, Recall, F1-Score (Macro/Micro)
@@ -256,7 +267,7 @@ python benchmarks/eval_reanchor.py --seeds 7 21 42 87 123
 - **Macro F1-Score**: Class-imbalanced fairness
 - **Confidence Interval / Std**: Robustness indicator
 
-## 🔬 Usage Examples
+## Usage Examples
 
 ### Example 1: Transfer Learning with DANN
 
@@ -340,7 +351,7 @@ for batch in data_stream:
     fwd = compute_fwd(predictions, batch.y)
 ```
 
-## 📝 Configuration Files
+## Configuration Files
 
 Configuration files use YAML format for easy experimentation:
 
@@ -371,7 +382,7 @@ evaluation:
   output_dir: 'results/baseline'
 ```
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 # Run all tests
@@ -384,20 +395,20 @@ pytest tests/test_models.py -v
 pytest --cov=models --cov=datasets tests/
 ```
 
-## 📚 Citation
+## Citation
 
-If you use this benchmark in your research, please cite our review paper:
+If you use this benchmark in your research, please cite the accompanying manuscript:
 
 ```bibtex
 @article{anonymous2026intelligent,
-  title={Continual Learning for Robotic and Edge Chemical Sensing: A Critical Review and Lifecycle Benchmark Framework},
+  title={Protocol Choices, Not Algorithms Alone, Determine Electronic-Nose Drift Benchmark Conclusions},
   author={Anonymous Authors},
   journal={Under double-blind review},
   year={2026}
 }
 ```
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these steps:
 
@@ -414,17 +425,17 @@ We welcome contributions! Please follow these steps:
 - Update documentation
 - Use type hints where possible
 
-## 📧 Contact
+## Contact
 
 - **Contact**: Anonymous during double-blind review
 - **Institution**: Withheld during double-blind review
 - **Repository**: Anonymous review link
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 Acknowledgements are withheld during double-blind review.
 
