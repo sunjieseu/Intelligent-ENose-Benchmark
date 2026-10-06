@@ -14,7 +14,7 @@
 - ✅ **Open-Source Repository**: Implementations of the baseline, adaptation, few-shot, lifecycle, footprint, leakage, and figure-generation protocols used in the manuscript
 - ✅ **Public Dataset Support**: Scripts for downloading and preprocessing major E-nose datasets (UCSD, CQU, etc.)
 
-This project accompanies the manuscript: **"Protocol Choices, Not Algorithms Alone, Determine Electronic-Nose Drift Benchmark Conclusions"** (Nature-style format).
+This project accompanies the manuscript: **"A deployment-protocol benchmark for continual learning in drifted electronic-nose sensing"** (Nature-style format).
 
 ## Recent revision updates
 
@@ -401,7 +401,7 @@ If you use this benchmark in your research, please cite the accompanying manuscr
 
 ```bibtex
 @article{anonymous2026intelligent,
-  title={Protocol Choices, Not Algorithms Alone, Determine Electronic-Nose Drift Benchmark Conclusions},
+  title={A deployment-protocol benchmark for continual learning in drifted electronic-nose sensing},
   author={Anonymous Authors},
   journal={Under double-blind review},
   year={2026}
